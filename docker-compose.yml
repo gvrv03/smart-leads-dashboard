@@ -1,0 +1,27 @@
+services:
+  # Local MongoDB — comment out this service if using MongoDB Atlas
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    env_file: ./server/.env
+    depends_on:
+      - mongo
+    # If using Atlas, remove 'depends_on: [mongo]' above
+
+  client:
+    build: ./client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+
+volumes:
+  mongo-data:
