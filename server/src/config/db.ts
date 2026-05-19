@@ -6,11 +6,27 @@ import { env } from './env';
 // This fixes networks (college/corporate) that block MongoDB Atlas SRV lookups
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
+let isConnected = false;
+
 export const connectDB = async (): Promise<void> => {
+  if (isConnected) {
+    console.log('MongoDB already connected.');
+    return;
+  }
+
   try {
     const isAtlas = env.MONGODB_URI.includes('mongodb+srv');
 
-    const conn = await mongoose.connect(env.MONGODB_URI);
+    mongoose.set('bufferCommands', false);
+
+    const conn = await mongoose.connect(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+      maxPoolSize: 10,
+    });
+
+    isConnected = true;
 
     const host = conn.connection.host;
     const dbName = conn.connection.name;
@@ -18,6 +34,7 @@ export const connectDB = async (): Promise<void> => {
 
     console.log(`MongoDB connected [${mode}]: ${host} | DB: ${dbName}`);
   } catch (error) {
+    isConnected = false;
     if (error instanceof Error) {
       console.error(`MongoDB connection error: ${error.message}`);
       if (error.message.includes('ECONNREFUSED')) {
@@ -29,7 +46,10 @@ export const connectDB = async (): Promise<void> => {
       if (error.message.includes('getaddrinfo') || error.message.includes('ENOTFOUND')) {
         console.error('Hint: Check your internet connection or Atlas cluster hostname.');
       }
+      if (error.message.includes('timed out')) {
+        console.error('Hint: Check Atlas Network Access — add 0.0.0.0/0 to allow all IPs (required for Vercel).');
+      }
     }
-    console.error('Server will continue running but database operations will fail.');
+    throw error;
   }
 };
